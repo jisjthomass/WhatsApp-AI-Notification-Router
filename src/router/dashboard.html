@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp AI Enterprise Router</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        [v-cloak] { display: none; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .tab-btn { transition: all 0.2s; }
+        .tab-btn.active { background-color: #1e293b; color: white; border-left: 3px solid #34d399; }
+        .tab-btn:not(.active) { color: #94a3b8; }
+        .tab-btn:not(.active):hover { background-color: #1e293b; color: white; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans h-screen overflow-hidden flex">
+    
+    <div id="app" v-cloak class="flex w-full h-full relative">
+        <!-- Edit User Modal -->
+        <div v-if="editingUser" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+                <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800 text-lg"><i class="fa-solid fa-user-pen mr-2 text-blue-600"></i> Edit Profile: {{ editingUser.user_id }}</h3>
+                    <button @click="editingUser = null" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                <div class="p-6 overflow-y-auto space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Display Name</label>
+                        <input v-model="editingUser.name" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Sensitivity Level</label>
+                        <select v-model="editingUser.sensitivity" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                            <option value="low">Low (Aggressively Mute)</option>
+                            <option value="balanced">Balanced (Default)</option>
+                            <option value="high">High (Notify more often)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Priority Contacts <span class="text-xs font-normal text-slate-500">(comma separated Phone IDs)</span></label>
+                        <textarea v-model="editingUser.priority_contacts_str" rows="2" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="16315551234, 16505559999"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Muted Chats <span class="text-xs font-normal text-slate-500">(comma separated Chat IDs)</span></label>
+                        <textarea v-model="editingUser.muted_chats_str" rows="2" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="group_1234, 16315551234"></textarea>
+                    </div>
+                </div>
+                <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+                    <button @click="editingUser = null" class="px-4 py-2 font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition">Cancel</button>
+                    <button @click="saveEditedUser" class="px-4 py-2 font-medium bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-check" v-if="!savingUser"></i>
+                        <i class="fa-solid fa-spinner fa-spin" v-else></i>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <aside class="w-64 bg-slate-900 flex flex-col hidden md:flex shrink-0">
+            <div class="h-16 flex items-center px-6 border-b border-slate-800">
+                <i class="fa-brands fa-whatsapp text-emerald-400 text-2xl mr-3"></i>
+                <span class="text-white font-bold tracking-wide">AI Router<span class="text-emerald-400 text-xs align-top ml-1">PRO</span></span>
+            </div>
+            <nav class="flex-1 px-4 py-6 space-y-2">
+                <a href="#" @click.prevent="currentTab = 'dashboard'" :class="{ active: currentTab === 'dashboard' }" class="tab-btn flex items-center gap-3 px-4 py-3 rounded-lg font-medium">
+                    <i class="fa-solid fa-chart-line w-5 text-center"></i> Dashboard
+                </a>
+                <a href="#" @click.prevent="currentTab = 'users'" :class="{ active: currentTab === 'users' }" class="tab-btn flex items-center gap-3 px-4 py-3 rounded-lg font-medium">
+                    <i class="fa-solid fa-users w-5 text-center"></i> Users & Prefs
+                </a>
+                <a href="#" @click.prevent="currentTab = 'security'" :class="{ active: currentTab === 'security' }" class="tab-btn flex items-center gap-3 px-4 py-3 rounded-lg font-medium">
+                    <i class="fa-solid fa-shield-halved w-5 text-center"></i> Security Logs
+                </a>
+                <a href="#" @click.prevent="currentTab = 'settings'" :class="{ active: currentTab === 'settings' }" class="tab-btn flex items-center gap-3 px-4 py-3 rounded-lg font-medium">
+                    <i class="fa-solid fa-gear w-5 text-center"></i> Settings
+                </a>
+            </nav>
+            <div class="p-4 border-t border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold">A</div>
+                    <div>
+                        <p class="text-sm text-white font-medium">System Admin</p>
+                        <p class="text-xs text-slate-500">Enterprise Mode</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col h-screen overflow-hidden">
+            
+            <!-- Header -->
+            <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
+                <h1 class="text-xl font-semibold text-slate-800 capitalize">{{ currentTab === 'dashboard' ? 'System Analytics Overview' : currentTab.replace('users', 'Users & Preferences') }}</h1>
+                <div class="flex items-center gap-4">
+                    <button @click="fetchData" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-md transition flex items-center gap-2">
+                        <i class="fa-solid fa-rotate-right" :class="{'animate-spin': loading}"></i> Refresh
+                    </button>
+                    <span class="flex h-3 w-3 relative ml-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <span class="text-sm font-medium text-emerald-600">Live</span>
+                </div>
+            </header>
+
+            <!-- Scrollable Content -->
+            <main class="flex-1 overflow-y-auto p-8 relative">
+                
+                <div v-if="error" class="bg-rose-50 text-rose-700 p-4 rounded-lg mb-6 flex items-center gap-3 border border-rose-200 shadow-sm">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <p class="font-medium">{{ error }}</p>
+                </div>
+
+                <!-- ================= DASHBOARD TAB ================= -->
+                <div v-show="currentTab === 'dashboard'" class="space-y-8">
+                    <!-- Stats Row -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+                                <i class="fa-solid fa-message"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-500 font-medium">Total Routed</p>
+                                <h3 class="text-2xl font-bold text-slate-800">{{ stats.total_routed || 0 }}</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-xl">
+                                <i class="fa-solid fa-bell"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-500 font-medium">Alerts Triggered</p>
+                                <h3 class="text-2xl font-bold text-slate-800">{{ (stats.action_distribution && stats.action_distribution.notify) || 0 }}</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+                                <i class="fa-solid fa-shield"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-500 font-medium">Spam Blocked</p>
+                                <h3 class="text-2xl font-bold text-slate-800">{{ stats.spam_blocked || 0 }}</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">
+                                <i class="fa-solid fa-brain"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-500 font-medium">Avg Confidence</p>
+                                <h3 class="text-2xl font-bold text-slate-800">{{ stats.average_confidence || 0 }}%</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-[500px]">
+                            <div class="px-6 py-4 border-b border-slate-200 bg-slate-50/50 rounded-t-xl">
+                                <h2 class="text-lg font-semibold text-slate-800">Global Routing Log</h2>
+                            </div>
+                            <div class="flex-1 overflow-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead class="sticky top-0 bg-white shadow-sm z-10">
+                                        <tr class="text-xs font-semibold text-slate-500 uppercase border-b border-slate-200 bg-white">
+                                            <th class="px-6 py-3">Time</th>
+                                            <th class="px-6 py-3">User</th>
+                                            <th class="px-6 py-3">Decision</th>
+                                            <th class="px-6 py-3">Reasoning</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 text-sm">
+                                        <tr v-if="history.length === 0">
+                                            <td colspan="4" class="px-6 py-8 text-center text-slate-400">No logs found.</td>
+                                        </tr>
+                                        <tr v-for="entry in history" :key="entry.id" class="hover:bg-slate-50">
+                                            <td class="px-6 py-3 text-xs text-slate-500">{{ formatDate(entry.timestamp) }}</td>
+                                            <td class="px-6 py-3 font-mono text-slate-600">{{ entry.user_id }}</td>
+                                            <td class="px-6 py-3">
+                                                <span :class="getActionClass(entry.action)" class="px-2 py-1 inline-flex text-[11px] font-bold rounded-md">
+                                                    {{ entry.action.toUpperCase() }} ({{ Math.round(entry.confidence * 100) }}%)
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-3 text-slate-600 truncate max-w-xs" :title="entry.reasoning">
+                                                {{ entry.reasoning }}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col h-[500px]">
+                            <h2 class="text-lg font-semibold text-slate-800 mb-4">Distribution</h2>
+                            <div class="flex-1 relative">
+                                <canvas id="actionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= USERS TAB ================= -->
+                <div v-show="currentTab === 'users'" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-6 py-5 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
+                        <h2 class="text-lg font-semibold text-slate-800">Active Users Profile Management</h2>
+                        <span class="text-sm font-medium text-slate-500">{{ users.length }} Users Enrolled</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase font-semibold">
+                                    <th class="px-6 py-4">User ID / Phone</th>
+                                    <th class="px-6 py-4">Name</th>
+                                    <th class="px-6 py-4">Sensitivity</th>
+                                    <th class="px-6 py-4">Priority Contacts</th>
+                                    <th class="px-6 py-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-if="users.length === 0">
+                                    <td colspan="5" class="px-6 py-12 text-center text-slate-400">No users found. Test the webhook to create a profile.</td>
+                                </tr>
+                                <tr v-for="user in users" :key="user.user_id" class="hover:bg-slate-50">
+                                    <td class="px-6 py-4 font-mono text-sm text-slate-600">{{ user.user_id }}</td>
+                                    <td class="px-6 py-4 font-medium text-slate-800">{{ user.name }}</td>
+                                    <td class="px-6 py-4">
+                                        <select v-model="user.sensitivity" @change="updateUser(user)" class="text-sm border border-slate-300 rounded px-2 py-1 bg-white outline-none focus:ring-2 focus:ring-blue-500">
+                                            <option value="low">Low (Mute more)</option>
+                                            <option value="balanced">Balanced</option>
+                                            <option value="high">High (Notify more)</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-slate-500">
+                                        <span class="bg-slate-100 px-2 py-1 rounded text-xs border border-slate-200">{{ user.priority_contacts.length }} contacts</span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <button @click="openEditModal(user)" class="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-md text-sm font-medium transition flex items-center gap-1.5">
+                                            <i class="fa-solid fa-pen-to-square"></i> Edit Full
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ================= SECURITY TAB ================= -->
+                <div v-show="currentTab === 'security'" class="space-y-6">
+                    <div class="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm flex items-start gap-4">
+                        <div class="bg-red-100 p-3 rounded-full text-red-600 text-xl"><i class="fa-solid fa-shield-virus"></i></div>
+                        <div>
+                            <h2 class="text-lg font-bold text-red-800 mb-1">Threat Protection Active</h2>
+                            <p class="text-red-700 text-sm">The AI Router is automatically quarantining messages matching known scam signatures, phishing domains, and extreme spam behaviors across all users.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="px-6 py-4 border-b border-slate-200 bg-slate-50/50">
+                            <h3 class="font-semibold text-slate-800"><i class="fa-solid fa-ban text-red-500 mr-2"></i> Quarantine Log (Muted Threats)</h3>
+                        </div>
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500">
+                                <tr>
+                                    <th class="px-6 py-3">Time</th>
+                                    <th class="px-6 py-3">Target User</th>
+                                    <th class="px-6 py-3">Threat Reason</th>
+                                    <th class="px-6 py-3">AI Confidence</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-sm">
+                                <tr v-for="threat in securityLogs" :key="threat.id" class="hover:bg-slate-50">
+                                    <td class="px-6 py-4 text-xs text-slate-500">{{ formatDate(threat.timestamp) }}</td>
+                                    <td class="px-6 py-4 font-mono text-slate-600">{{ threat.user_id }}</td>
+                                    <td class="px-6 py-4 text-red-700 font-medium">{{ threat.reasoning }}</td>
+                                    <td class="px-6 py-4"><span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold border border-red-200">{{ Math.round(threat.confidence * 100) }}%</span></td>
+                                </tr>
+                                <tr v-if="securityLogs.length === 0">
+                                    <td colspan="4" class="px-6 py-12 text-center text-slate-500">No threats detected recently.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ================= SETTINGS TAB ================= -->
+                <div v-show="currentTab === 'settings'" class="max-w-3xl">
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+                        <div class="px-6 py-5 border-b border-slate-200 bg-slate-50/50">
+                            <h2 class="text-lg font-semibold text-slate-800">System Information</h2>
+                        </div>
+                        <div class="p-6 space-y-6">
+                            <div class="grid grid-cols-3 border-b border-slate-100 pb-4">
+                                <div class="col-span-1 text-slate-500 font-medium">Status</div>
+                                <div class="col-span-2 flex items-center gap-2"><div class="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div> <span class="font-bold text-emerald-600">{{ health.status?.toUpperCase() || 'UNKNOWN' }}</span></div>
+                            </div>
+                            <div class="grid grid-cols-3 border-b border-slate-100 pb-4">
+                                <div class="col-span-1 text-slate-500 font-medium">LLM Engine</div>
+                                <div class="col-span-2"><span class="bg-blue-50 border border-blue-200 text-blue-700 font-mono text-xs px-2 py-1 rounded">{{ health.model || 'Loading...' }}</span></div>
+                            </div>
+                            <div class="grid grid-cols-3 border-b border-slate-100 pb-4">
+                                <div class="col-span-1 text-slate-500 font-medium">Database Layer</div>
+                                <div class="col-span-2 font-mono text-sm text-slate-700">Async PostgreSQL (router.db)</div>
+                            </div>
+                            <div class="grid grid-cols-3">
+                                <div class="col-span-1 text-slate-500 font-medium">Webhook URL</div>
+                                <div class="col-span-2 font-mono text-sm text-slate-700 flex items-center gap-2">
+                                    /webhook (POST/GET) <span class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-xs border border-emerald-200 font-semibold"><i class="fa-solid fa-check"></i> Meta Compliant</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl border border-rose-200 shadow-sm overflow-hidden">
+                        <div class="px-6 py-5 border-b border-rose-200 bg-rose-50 flex items-center gap-2">
+                            <i class="fa-solid fa-triangle-exclamation text-rose-600"></i>
+                            <h2 class="text-lg font-semibold text-rose-800">Danger Zone</h2>
+                        </div>
+                        <div class="p-6 bg-rose-50/30">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="font-bold text-slate-800">Flush Routing Database</h4>
+                                    <p class="text-sm text-slate-500 mt-1">Permanently delete all routing logs and system history. This cannot be undone.</p>
+                                </div>
+                                <button @click="purgeLogs" :disabled="purging" class="bg-white border-2 border-rose-600 text-rose-600 hover:bg-rose-600 hover:text-white px-5 py-2.5 rounded-lg font-bold transition flex items-center gap-2">
+                                    <i class="fa-solid fa-fire" v-if="!purging"></i>
+                                    <i class="fa-solid fa-spinner fa-spin" v-else></i>
+                                    {{ purging ? 'Purging...' : 'Purge Logs' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue
+
+        createApp({
+            setup() {
+                const currentTab = ref('dashboard')
+                const history = ref([])
+                const stats = ref({})
+                const users = ref([])
+                const health = ref({})
+                const loading = ref(false)
+                const error = ref(null)
+                
+                // Modal State
+                const editingUser = ref(null)
+                const savingUser = ref(false)
+                
+                // Purge state
+                const purging = ref(false)
+                
+                let chartInstance = null
+
+                const securityLogs = computed(() => {
+                    return history.value.filter(h => 
+                        h.action === 'mute' && (
+                            h.reasoning.toLowerCase().includes('scam') || 
+                            h.reasoning.toLowerCase().includes('phishing') ||
+                            h.reasoning.toLowerCase().includes('spam') ||
+                            h.confidence > 0.90
+                        )
+                    )
+                })
+
+                const initChart = () => {
+                    const ctx = document.getElementById('actionChart');
+                    if (!ctx) return;
+                    if (chartInstance) chartInstance.destroy();
+                    
+                    chartInstance = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Notify (Alert)', 'Digest (Batch)', 'Mute (Spam/Silence)'],
+                            datasets: [{
+                                data: [0, 0, 0],
+                                backgroundColor: ['#ef4444', '#f59e0b', '#64748b'],
+                                borderWidth: 0,
+                                hoverOffset: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '70%',
+                            plugins: {
+                                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: { size: 11 } } }
+                            }
+                        }
+                    });
+                }
+
+                const updateChart = () => {
+                    if (chartInstance && stats.value.action_distribution) {
+                        const dist = stats.value.action_distribution;
+                        chartInstance.data.datasets[0].data = [
+                            dist.notify || 0,
+                            dist.digest || 0,
+                            dist.mute || 0
+                        ];
+                        chartInstance.update();
+                    }
+                }
+
+                const fetchData = async () => {
+                    loading.value = true
+                    error.value = null
+                    try {
+                        // Parallel fetch to make it snappy
+                        const [statsRes, histRes, usersRes, healthRes] = await Promise.all([
+                            fetch('/analytics/stats'),
+                            fetch('/analytics/recent'),
+                            fetch('/users'),
+                            fetch('/health')
+                        ])
+                        
+                        if (statsRes.ok) stats.value = await statsRes.json()
+                        if (histRes.ok) history.value = await histRes.json()
+                        if (usersRes.ok) users.value = await usersRes.json()
+                        if (healthRes.ok) health.value = await healthRes.json()
+                        
+                        if (currentTab.value === 'dashboard') updateChart()
+                        
+                    } catch (e) {
+                        error.value = "Failed to sync with API. Check server connection."
+                    } finally {
+                        loading.value = false
+                    }
+                }
+
+                const updateUser = async (user) => {
+                    try {
+                        const res = await fetch(`/users/${user.user_id}/profile`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(user)
+                        });
+                        if (res.ok) {
+                            console.log(`Updated sensitivity for ${user.name}`);
+                        } else {
+                            throw new Error("Failed");
+                        }
+                    } catch (e) {
+                        error.value = 'Failed to update user profile.';
+                    }
+                }
+                
+                const openEditModal = (user) => {
+                    editingUser.value = { 
+                        ...user, 
+                        priority_contacts_str: user.priority_contacts.join(', '),
+                        muted_chats_str: user.muted_chats.join(', ')
+                    };
+                }
+                
+                const saveEditedUser = async () => {
+                    savingUser.value = true;
+                    try {
+                        // Parse strings back to arrays
+                        const userToSave = {
+                            ...editingUser.value,
+                            priority_contacts: editingUser.value.priority_contacts_str.split(',').map(s => s.trim()).filter(s => s),
+                            muted_chats: editingUser.value.muted_chats_str.split(',').map(s => s.trim()).filter(s => s)
+                        };
+                        
+                        const res = await fetch(`/users/${userToSave.user_id}/profile`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(userToSave)
+                        });
+                        
+                        if (res.ok) {
+                            editingUser.value = null; // close modal
+                            fetchData(); // refresh list
+                        } else {
+                            throw new Error("API rejected save");
+                        }
+                    } catch (e) {
+                        alert('Failed to save changes.');
+                    } finally {
+                        savingUser.value = false;
+                    }
+                }
+
+                const purgeLogs = async () => {
+                    if (!confirm("Are you absolutely sure you want to permanently delete all routing history?")) return;
+                    
+                    purging.value = true;
+                    try {
+                        const res = await fetch('/analytics/history', { method: 'DELETE' });
+                        if (res.ok) {
+                            alert("System history has been purged.");
+                            fetchData();
+                        } else {
+                            throw new Error("Failed to delete");
+                        }
+                    } catch (e) {
+                        error.value = "Failed to purge logs.";
+                    } finally {
+                        purging.value = false;
+                    }
+                }
+
+                // Re-init chart when returning to dashboard tab
+                watch(currentTab, (newTab) => {
+                    if (newTab === 'dashboard') {
+                        nextTick(() => {
+                            initChart();
+                            updateChart();
+                        })
+                    }
+                })
+
+                const formatDate = (dateString) => {
+                    if (!dateString) return '';
+                    const date = new Date(dateString)
+                    return date.toLocaleTimeString(undefined, { 
+                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                    }) + ' ' + date.toLocaleDateString()
+                }
+
+                const getActionClass = (action) => {
+                    switch (action.toLowerCase()) {
+                        case 'notify': return 'bg-rose-100 text-rose-700'
+                        case 'digest': return 'bg-amber-100 text-amber-700'
+                        case 'mute': return 'bg-slate-100 text-slate-700'
+                        default: return 'bg-blue-100 text-blue-700'
+                    }
+                }
+
+                onMounted(() => {
+                    initChart()
+                    fetchData()
+                    // Background sync every 5 seconds
+                    setInterval(() => {
+                        if (editingUser.value) return; // Don't disrupt data while editing
+                        fetch('/analytics/stats').then(r => r.json()).then(d => { stats.value = d; if(currentTab.value === 'dashboard') updateChart() });
+                        fetch('/analytics/recent').then(r => r.json()).then(d => history.value = d);
+                        if (currentTab.value === 'users') fetch('/users').then(r => r.json()).then(d => users.value = d);
+                    }, 5000)
+                })
+
+                return {
+                    currentTab,
+                    history,
+                    stats,
+                    users,
+                    health,
+                    securityLogs,
+                    loading,
+                    error,
+                    editingUser,
+                    savingUser,
+                    purging,
+                    fetchData,
+                    updateUser,
+                    openEditModal,
+                    saveEditedUser,
+                    purgeLogs,
+                    formatDate,
+                    getActionClass
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

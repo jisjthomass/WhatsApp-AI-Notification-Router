@@ -1,0 +1,30 @@
+{
+    "user_id": "user_priya",
+    "name": "Priya Sharma",
+    "priority_contacts": [
+        "sender_husband_amit",
+        "sender_mother",
+        "sender_school_admin"
+    ],
+    "muted_chats": [
+        "chat_office_memes",
+        "chat_colony_general"
+    ],
+    "interests": [
+        "school fees",
+        "school updates",
+        "family health",
+        "children activities",
+        "society maintenance"
+    ],
+    "blocked_categories": [
+        "promotions",
+        "chain_forwards",
+        "good_morning_messages"
+    ],
+    "work_hours": {
+        "start": "09:00",
+        "end": "18:00"
+    },
+    "sensitivity": "balanced"
+}
