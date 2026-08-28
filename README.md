@@ -1,30 +1,55 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-# WhatsApp-AI-Notification-Router
-I got tired of WhatsApp notifications, so I built an enterprise-grade AI router. It uses Google Gemini to read my texts, look at images/voice notes, judge the sender's trust score, and decide whether to ping my phone, drop it in a SQLite database, or text them back automatically.
-=======
-# WhatsApp AI Notification Router (Enterprise)
+# 🚀 WhatsApp AI Notification Router (Enterprise Edition)
 
-An intelligent, AI-powered WhatsApp message notification router that uses Google Gemini to automatically filter, digest, and reply to messages based on user preferences, trust scores, and multimodal content analysis.
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Google Gemini](https://img.shields.io/badge/AI-Google_Gemini-FFca28.svg?logo=google)](https://deepmind.google/technologies/gemini/)
+[![SQLAlchemy](https://img.shields.io/badge/Database-SQLAlchemy-red.svg)](https://www.sqlalchemy.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This Enterprise edition features a full **FastAPI** webhook server, **SQLAlchemy** asynchronous database storage, an interactive **Analytics Dashboard**, and **Two-Way Agentic Replies** via the official Meta WhatsApp Cloud API.
+An intelligent, AI-powered WhatsApp message bouncer and router. It acts as an **Enterprise Firewall for your attention**, using **Google Gemini** to automatically filter, digest, and autonomously reply to incoming WhatsApp messages based on context, multimodal analysis, and user trust scores.
 
 ---
 
-## 🚀 Enterprise Features
+## ✨ Enterprise Features
 
-* **Meta Webhook Integration:** A production-ready FastAPI endpoint that receives, parses, and acknowledges live WhatsApp webhooks.
-* **Two-Way Agentic Replies:** When a user asks a direct question (e.g. "What time is the meeting?"), the AI can choose the `reply` action and instantly send a WhatsApp text back to the sender via the Meta Graph API.
-* **Asynchronous Database:** Uses SQLAlchemy 2.0 and SQLite (or PostgreSQL) to securely log all user profiles, sender context, and routing decisions.
-* **Live Dashboard:** A real-time HTML dashboard (`http://localhost:8000/`) that polls the database to display the latest routed messages, AI reasoning, and automated replies.
-* **Multimodal Analysis:** Processes images, audio (voice notes), and text to determine priority.
-* **Dynamic Trust Scoring:** Learns from history to auto-mute spam and promote high-trust contacts.
+* **🛡️ AI Bouncer & Firewall:** Stops notification fatigue by actively judging if a message is worth your immediate attention, or if it should be muted/batched into a digest.
+* **🤖 Two-Way Agentic Replies:** When a sender asks a direct question, the AI can choose the `reply` action and autonomously converse with them via the Meta Graph API while you sleep.
+* **👁️ Multimodal Analysis:** Doesn't just read text—it analyzes images (flyers, memes) and listens to audio (voice notes) to determine priority.
+* **🧠 Dynamic Trust Scoring:** Cross-references senders against a dynamic registry to auto-mute scammers and immediately pass through high-trust contacts (like family or VIP clients).
+* **📊 Live Analytics Dashboard:** A real-time, polling HTML dashboard (`http://localhost:8000/`) that visualizes the AI's internal reasoning and routing history.
+* **⚡ Async Architecture:** Built on FastAPI and asynchronous SQLAlchemy (SQLite/PostgreSQL) for high-concurrency webhook processing.
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant WA as WhatsApp / Meta API
+    participant FastAPI as Webhook Server
+    participant DB as SQLite / PostgreSQL
+    participant AI as Gemini 3.5 Flash
+    
+    WA->>FastAPI: POST /webhook (New Message)
+    FastAPI->>DB: Fetch User Profile & Trust Score
+    FastAPI->>AI: Send Prompt + Multimodal Data (Image/Audio)
+    AI-->>FastAPI: JSON Decision (Notify, Digest, Mute, Reply)
+    
+    alt Decision == Reply
+        FastAPI->>WA: POST /messages (Auto-Reply via Graph API)
+    end
+    
+    FastAPI->>DB: Log Interaction & AI Reasoning
+    FastAPI-->>WA: 200 OK (Acknowledge Webhook)
+```
 
 ---
 
 ## 🛠️ Installation & Setup
 
 ### 1. Install Dependencies
+Ensure you have Python 3.11+ installed.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
@@ -32,24 +57,28 @@ pip install -r requirements.txt
 ```
 
 ### 2. Configure Environment Variables
-Copy the example environment file and fill in your keys:
+Copy the example environment file and fill in your API keys:
 ```bash
 cp .env.example .env
 ```
 You will need:
-* `GEMINI_API_KEY`: Get this from Google AI Studio.
-* `META_VERIFY_TOKEN`: A random string you choose to verify the Meta webhook.
+* `GEMINI_API_KEY`: Get this from [Google AI Studio](https://aistudio.google.com/).
+* `META_VERIFY_TOKEN`: A secure random string you choose to verify your webhook.
 * `META_ACCESS_TOKEN`: Your Permanent Page Access Token from the Meta App Dashboard.
 * `META_PHONE_NUMBER_ID`: The Phone Number ID assigned to your real WhatsApp Business number.
 
 ### 3. Run the Server
+Start the FastAPI server with auto-reload enabled:
 ```bash
 uvicorn src.router.api:app --reload
 ```
 The server will start on `http://127.0.0.1:8000`.
 
 ### 4. Connect to Meta (WhatsApp Cloud API)
-1. Expose your local server using Ngrok: `ngrok http 8000`
+1. Expose your local server securely using Ngrok: 
+   ```bash
+   ngrok http 8000
+   ```
 2. Go to your **Meta App Dashboard** > **WhatsApp** > **Configuration**.
 3. Set your Callback URL to `https://<your-ngrok-url>.ngrok-free.dev/webhook`.
 4. Enter your `META_VERIFY_TOKEN` and click **Verify and Save**.
@@ -59,18 +88,17 @@ The server will start on `http://127.0.0.1:8000`.
 ---
 
 ## 💻 The Dashboard
-Navigate to `http://localhost:8000/` in your browser while the server is running to view the live analytics dashboard. You will see messages appear in real-time as they are processed by the AI.
+Navigate to `http://localhost:8000/` in your browser while the server is running to view the live analytics dashboard. You will see messages pop up in real-time as they are processed by the AI, completely with their routing tag (🔴 Notify, 🟡 Digest, ⚫ Mute, 🔵 Reply) and Gemini's internal reasoning.
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 whatsapp-notification-router/
 ├── .env.example                       # Environment variables template
 ├── requirements.txt                   # Project dependencies
 ├── pyproject.toml                     # Package configuration
-├── router.db                          # SQLite database (auto-generated)
 ├── src/
 │   └── router/
 │       ├── api.py                     # FastAPI server and webhook endpoints
@@ -79,23 +107,18 @@ whatsapp-notification-router/
 │       ├── db_models.py               # Database table schemas
 │       ├── engine.py                  # Core routing logic & AI orchestration
 │       ├── meta_api.py                # Outbound WhatsApp Graph API client
-│       ├── models.py                  # Pydantic data schemas
 │       ├── prompt.py                  # Gemini prompt composition
 │       ├── webhook.py                 # Meta webhook parsing logic
-│       ├── webhook_models.py          # Strict Pydantic models for Meta payloads
-│       └── dashboard.html             # UI for the live analytics dashboard
-└── tests/
-    ├── conftest.py                    # Pytest async database fixtures
-    ├── test_api.py                    # Webhook API integration tests
-    ├── test_engine.py                 # Core routing unit tests
-    └── test_prompt.py                 # Prompt building tests
+│       ├── dashboard.html             # UI for the live analytics dashboard
+│       └── ... (schemas and utils)
+└── tests/                             # Pytest async database & routing tests
 ```
 
 ---
 
 ## 🧪 Testing
 
-Run the automated test suite with `pytest`:
+Run the automated test suite to ensure the database and AI routing logic are functioning correctly:
 ```bash
 pytest tests/
 ```
@@ -103,9 +126,4 @@ pytest tests/
 ---
 
 ## 📄 License
-MIT License. Designed for privacy-first, intelligent message routing.
->>>>>>> f4db39c (Initial commit: WhatsApp AI Notification Router)
-=======
-# WhatsApp-AI-Notification-Router
-I got tired of WhatsApp notifications, so I built an enterprise-grade AI router. It uses Google Gemini to read my texts, look at images/voice notes, judge the sender's trust score, and decide whether to ping my phone, drop it in a SQLite database, or text them back automatically.
->>>>>>> 30b60334da54bfef36cefdd94dcb39815a5e2361
+Released under the [MIT License](LICENSE). Designed for privacy-first, intelligent message routing.
