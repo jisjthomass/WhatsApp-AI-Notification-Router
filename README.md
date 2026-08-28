@@ -126,4 +126,4 @@ pytest tests/
 ---
 
 ## 📄 License
-Released under the [MIT License](LICENSE). Designed for privacy-first, intelligent message routing.
+Released under the [GNU General Public License v3.0](LICENSE). Designed for privacy-first, intelligent message routing.
